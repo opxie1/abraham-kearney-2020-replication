@@ -116,7 +116,7 @@ cat(sprintf("[03] Wrote table_1a.csv / 1b / 1c (%d rows each)\n",
 # Total share == 1.
 walk2(list(tab_1a, tab_1b, tab_1c), c("1A", "1B", "1C"), \(t, lab) {
   tot <- t |> filter(age_group == "TOTAL")
-  stopifnot(abs(tot$s_1999 - 1) < 1e-9, abs(tot$s_2018 - 1) < 1e-9)
+  stopifnot(abs(tot$s_1999 - 1) < SHARE_TOL, abs(tot$s_2018 - 1) < SHARE_TOL)
   cat(sprintf("[03] Table %s TOTAL: ΔE/P = %+.4f (paper: -0.038 All, -0.053 M, -0.025 F)\n",
               lab, tot$dEP_99_18))
 })

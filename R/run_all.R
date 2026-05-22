@@ -15,10 +15,10 @@ scripts <- c(
   "06_verify.R"
 )
 
-for (s in scripts) {
+walk(scripts, \(s) {
   cat(sprintf("\n>>> %s\n", s))
   source(here::here("R", s), local = new.env())
-}
+})
 
 # Dump sessionInfo.
 sink(file.path(PATH_DOCS, "sessionInfo.txt"))

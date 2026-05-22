@@ -205,7 +205,7 @@ cat(sprintf("[04] Wrote table_2a.csv (%d rows) and table_2b.csv (%d rows)\n",
             nrow(tab_2a), nrow(tab_2b)))
 
 # Each column sums to 1.
-for (col in c("Overall", "Male", "Female")) {
+walk(c("Overall", "Male", "Female"), \(col) {
   s2a <- tab_2a |>
     filter(panel != "Total") |>
     pull(.data[[col]]) |>
@@ -213,6 +213,7 @@ for (col in c("Overall", "Male", "Female")) {
   s2b <- tab_2b |>
     pull(.data[[col]]) |>
     sum()
+  stopifnot(abs(s2a - 1) < SHARE_TOL, abs(s2b - 1) < SHARE_TOL)
   cat(sprintf("[04] Table 2A col %-7s sum = %.6f | Table 2B sum = %.6f\n",
               col, s2a, s2b))
-}
+})

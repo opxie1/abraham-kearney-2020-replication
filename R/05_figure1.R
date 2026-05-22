@@ -25,7 +25,8 @@ series_ids <- read_csv(FILE_BLS_IDS, show_col_types = FALSE) |>
   mutate(series_id = str_trim(series_id))
 
 bls <- bls_raw |>
-  filter(period == "M13", year >= 1965, year <= 2018) |>
+  filter(period == "M13",
+         year >= YEAR_FIG1_START, year <= YEAR_FIG1_END) |>
   inner_join(series_ids, by = "series_id")
 
 cat(sprintf("[05] After filter & join with series_ids: %d rows\n",
@@ -95,10 +96,11 @@ p <- ggplot(plot_df,
   geom_line(linewidth = 0.7) +
   scale_y_continuous(labels = scales::label_percent(accuracy = 1),
                      limits = c(0, 1)) +
-  scale_x_continuous(breaks = seq(1965, 2018, by = 5)) +
+  scale_x_continuous(breaks = seq(YEAR_FIG1_START, YEAR_FIG1_END, by = 5)) +
   scale_colour_brewer(palette = "Dark2") +
   labs(
-    title = "Figure 1. Annual employment-to-population ratio by age group, 1965-2018",
+    title = sprintf("Figure 1. Annual employment-to-population ratio by age group, %d-%d",
+                    YEAR_FIG1_START, YEAR_FIG1_END),
     x = NULL, y = "Employment-to-population ratio",
     colour = "Age group",
     caption = "Source: BLS Labor Force Statistics from the CPS (annual averages, unadjusted)."

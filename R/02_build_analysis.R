@@ -47,8 +47,11 @@ analysis <- cps_micro |>
               NA_character_),
       levels = SCHOOL_LEVELS
     ),
-    # IPUMS: 1=M, 2=F.
-    sex = factor(if_else(sex == 1L, "Male", "Female"), levels = SEX_LEVELS),
+    # IPUMS: 1=M, 2=F. NA on any other code.
+    sex = factor(case_when(sex == 1L ~ "Male",
+                           sex == 2L ~ "Female",
+                           TRUE      ~ NA_character_),
+                 levels = SEX_LEVELS),
     employed = as.integer(empstat %in% EMPLOYED_STATUSES),
     weight   = compwt,
     age_group_detailed = cut(age, breaks = AGE_BREAKS_DET,
@@ -71,10 +74,16 @@ analysis <- cps_micro |>
 # NA invariants.
 stopifnot(
   all(is.na(analysis$education) == (analysis$age < 25)),
-  all(is.na(analysis$school_status) == (analysis$age >= 25))
+  all(is.na(analysis$school_status) == (analysis$age >= 25)),
+  # No unexpected sex codes.
+  !anyNA(analysis$sex),
+  # No NA educgroup for 25+ (the share denominators rely on this).
+  sum(is.na(analysis$educgroup) & analysis$age >= 25) == 0,
+  # No NA age cells from cut() (Inf top break absorbs any top-code).
+  !anyNA(analysis$age_group_detailed),
+  !anyNA(analysis$age_group_summary),
+  !anyNA(analysis$age_group_decomp)
 )
-# Spec assumes 0 NA educgroup rows for 25+; verify.
-stopifnot(sum(is.na(analysis$educgroup) & analysis$age >= 25) == 0)
 
 cat(sprintf("[02] Built analysis frame: %d rows, %d cols\n",
             nrow(analysis), ncol(analysis)))
@@ -86,9 +95,8 @@ cat(sprintf("[02] Wrote %s (%.1f MB)\n", FILE_ANALYSIS,
             file.info(FILE_ANALYSIS)$size / 1024^2))
 
 # Audit factor levels.
-for (col in c("age_group_detailed", "age_group_summary",
-              "age_group_decomp", "sex", "education",
-              "school_status", "educgroup")) {
-  cat(sprintf("[02] %s levels: %s\n", col,
-              paste(levels(analysis[[col]]), collapse = " | ")))
-}
+walk(c("age_group_detailed", "age_group_summary",
+       "age_group_decomp", "sex", "education",
+       "school_status", "educgroup"),
+     \(col) cat(sprintf("[02] %s levels: %s\n", col,
+                        paste(levels(analysis[[col]]), collapse = " | "))))

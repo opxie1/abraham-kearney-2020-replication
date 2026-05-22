@@ -54,7 +54,7 @@ cps_dta <- read_dta(FILE_CPS_DTA) |>
 
 stopifnot(nrow(cps_micro) == nrow(cps_dta))
 diff_weight <- abs(sum(cps_micro$compwt) - sum(cps_dta$compwt))
-stopifnot(diff_weight < 1e-3)
+stopifnot(diff_weight < WEIGHT_DIFF_TOL)
 cat(sprintf("[01] FWF/dta cross-check OK (n=%d, |Δsum(compwt)|=%.3e)\n",
             nrow(cps_micro), diff_weight))
 

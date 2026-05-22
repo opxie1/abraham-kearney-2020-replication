@@ -42,12 +42,19 @@ FILE_MICRO_RDS <- file.path(PATH_DATA, "cps_microdata_raw.rds")
 FILE_ANALYSIS  <- file.path(PATH_DATA, "analysis.parquet")
 
 # Anchor years.
-YEAR_BASE <- 1999L
-YEAR_END  <- 2018L
-YEARS     <- c(YEAR_BASE, YEAR_END)
+YEAR_BASE       <- 1999L
+YEAR_END        <- 2018L
+YEARS           <- c(YEAR_BASE, YEAR_END)
+YEAR_FIG1_START <- 1965L
+YEAR_FIG1_END   <- 2018L
 
-# 13-bin age cuts.
-AGE_BREAKS_DET <- c(16, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 99)
+# Tolerances.
+WEIGHT_DIFF_TOL <- 1e-3
+SHARE_TOL       <- 1e-9
+TOL_DIFF        <- 0.001
+
+# Top-open to absorb any IPUMS top-code.
+AGE_BREAKS_DET <- c(16, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, Inf)
 AGE_LABELS_DET <- c(
   "16-19", "20-24", "25-29", "30-34", "35-39",
   "40-44", "45-49", "50-54", "55-59", "60-64",
@@ -55,11 +62,11 @@ AGE_LABELS_DET <- c(
 )
 
 # 6-bin age cuts.
-AGE_BREAKS_SUMM <- c(16, 25, 35, 45, 55, 65, 99)
+AGE_BREAKS_SUMM <- c(16, 25, 35, 45, 55, 65, Inf)
 AGE_LABELS_SUMM <- c("16-24", "25-34", "35-44", "45-54", "55-64", "65+")
 
 # 4-bin age cuts.
-AGE_BREAKS_DECOMP <- c(16, 25, 55, 65, 99)
+AGE_BREAKS_DECOMP <- c(16, 25, 55, 65, Inf)
 AGE_LABELS_DECOMP <- c("16-24", "25-54", "55-64", "65+")
 
 # Display factors.

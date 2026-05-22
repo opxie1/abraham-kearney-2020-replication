@@ -18,11 +18,13 @@ read_published_table1 <- function(panel_name) {
     mutate(across(everything(), ~ suppressWarnings(as.numeric(.))))
   data_rows <- c(12:17, 20:21, 23:26, 28:31, 33:36, 38:41, 43:46, 48)
   out <- numeric_block[data_rows, ]
+  # Defensive: every picked cell must be numeric.
+  stopifnot(!anyNA(out))
   out
 }
 
 # Table 1 cell-wise diff.
-diff_table1 <- function(our_csv, panel_name, tol = 0.001) {
+diff_table1 <- function(our_csv, panel_name, tol = TOL_DIFF) {
   ours <- read_csv(our_csv, show_col_types = FALSE)
   pub  <- read_published_table1(panel_name)
   stopifnot(nrow(ours) == nrow(pub))
@@ -48,6 +50,8 @@ diff_table1 <- function(our_csv, panel_name, tol = 0.001) {
       fail     = diff_abs > tol
     )
   })
+  # Any NA diff means a misaligned or unread cell; fail loudly.
+  stopifnot(!anyNA(comparisons$diff_abs))
   comparisons
 }
 
@@ -75,7 +79,10 @@ read_published_table2a <- function() {
                   Overall = as.numeric(num[[1]][28]),
                   Male    = as.numeric(num[[2]][28]),
                   Female  = as.numeric(num[[3]][28]))
-  bind_rows(out, total)
+  out_full <- bind_rows(out, total)
+  # Total row legitimately has NA age_group; numerics must be present.
+  stopifnot(!anyNA(out_full$Overall), !anyNA(out_full$Male), !anyNA(out_full$Female))
+  out_full
 }
 
 # Table 2B published. Layout: cols 8-10; panel 2's 65+ block in rows 52-55.
@@ -141,25 +148,27 @@ read_published_table2b <- function() {
   }) |>
     select(panel, age_group, education, Overall, Male, Female)
 
+  # No NA numerics; misaligned layout would surface here.
+  stopifnot(!anyNA(out$Overall), !anyNA(out$Male), !anyNA(out$Female))
   out
 }
 
 # Table 2 cell-wise diff.
-diff_table2 <- function(our_csv, pub, key_cols, tol_pp = 0.001) {
+diff_table2 <- function(our_csv, pub, key_cols, tol_pp = TOL_DIFF) {
   ours <- read_csv(our_csv, show_col_types = FALSE)
-  cmp  <- ours |>
+  ours_long <- ours |>
     pivot_longer(c(Overall, Male, Female),
-                 names_to = "gender", values_to = "ours") |>
-    inner_join(
-      pub |> pivot_longer(c(Overall, Male, Female),
-                          names_to = "gender", values_to = "pub"),
-      by = c("panel", key_cols, "gender")
-    ) |>
-    mutate(
-      diff_abs = abs(ours - pub),
-      fail     = diff_abs > tol_pp
-    )
-  cmp
+                 names_to = "gender", values_to = "ours")
+  pub_long <- pub |>
+    pivot_longer(c(Overall, Male, Female),
+                 names_to = "gender", values_to = "pub")
+  cmp <- inner_join(ours_long, pub_long,
+                    by = c("panel", key_cols, "gender"))
+  # Inner join must not drop rows; row count must equal ours_long.
+  stopifnot(nrow(cmp) == nrow(ours_long))
+  cmp |>
+    mutate(diff_abs = abs(ours - pub),
+           fail     = diff_abs > tol_pp)
 }
 
 # Run diffs.
@@ -211,21 +220,39 @@ fig_cmp <- inner_join(fig_ours_wide, fig_pub,
                       by = c("gender", "year"),
                       suffix = c("_ours", "_pub"))
 
-fig_diff <- tibble(
-  col = c("epop16_24", "epop25_54", "epop55_64", "epop65", "epop_all"),
-  max_diff = c(
-    max(abs(fig_cmp$epop16_24_ours - fig_cmp$epop16_24_pub)),
-    max(abs(fig_cmp$epop25_54_ours - fig_cmp$epop25_54_pub)),
-    max(abs(fig_cmp$epop55_64_ours - fig_cmp$epop55_64_pub)),
-    max(abs(fig_cmp$epop65_ours    - fig_cmp$epop65_pub)),
-    max(abs(fig_cmp$epop_all_ours  - fig_cmp$epop_all_pub))
-  ),
-  rows = nrow(fig_cmp)
-)
+# 3 genders × (YEAR_FIG1_END - YEAR_FIG1_START + 1).
+expected_fig_rows <- 3L * (YEAR_FIG1_END - YEAR_FIG1_START + 1L)
+stopifnot(nrow(fig_cmp) == expected_fig_rows)
+
+# Per-cell diff: 810 points (5 series × 162 rows).
+fig_cells <- fig_cmp |>
+  transmute(
+    year, gender,
+    epop16_24_ours, epop16_24_pub,
+    epop25_54_ours, epop25_54_pub,
+    epop55_64_ours, epop55_64_pub,
+    epop65_ours,    epop65_pub,
+    epop_all_ours,  epop_all_pub
+  ) |>
+  pivot_longer(
+    cols = -c(year, gender),
+    names_to = c("series", ".value"),
+    names_pattern = "(.+)_(ours|pub)"
+  ) |>
+  mutate(diff_abs = abs(ours - pub),
+         fail     = diff_abs > TOL_DIFF)
+stopifnot(nrow(fig_cells) == 5L * expected_fig_rows)
+write_csv(fig_cells, file.path(PATH_DOCS, "diff_figure_1_cells.csv"))
+
+fig_diff <- fig_cells |>
+  summarise(max_diff = max(diff_abs, na.rm = TRUE),
+            failures = sum(fail, na.rm = TRUE),
+            .by = series) |>
+  mutate(rows = expected_fig_rows)
 write_csv(fig_diff, file.path(PATH_DOCS, "diff_figure_1.csv"))
 
 # 1999/2018 spot check.
-spot <- fig_ours_wide |> filter(year %in% c(1999, 2018))
+spot <- fig_ours_wide |> filter(year %in% YEARS)
 write_csv(spot, file.path(PATH_DOCS, "fig1_spotcheck.csv"))
 
 # Markdown report.
@@ -245,14 +272,12 @@ tbl_lines <- summary_tbl |>
       "|-------|-------|----------|--------------|"), x = _)
 
 fig_lines <- fig_diff |>
-  glue_data("| {col} | {sprintf('%.2e', max_diff)} |") |>
-  c(c("| Series | Max abs diff |",
-      "|--------|--------------|"), x = _)
+  glue_data("| {series} | {failures} | {sprintf('%.2e', max_diff)} |") |>
+  c(c("| Series | Failures | Max abs diff |",
+      "|--------|----------|--------------|"), x = _)
 
 md_lines <- c(
   "# Replication check",
-  "",
-  sprintf("Generated: %s", Sys.time()),
   "",
   "## Files used",
   "",
@@ -280,10 +305,11 @@ md_lines <- c(
   "- Figure 1 `All ages` = `sum(emp) / sum(pop)` within `(year, gender)`, not a mean of per-age EPOPs.",
   "- Zero NA `educgroup` rows for age 25+. Table 2B columns sum to 1.",
   "- Table 2 cell sums use `na.rm = TRUE` to match Stata `collapse (sum)` behaviour on missing cells. Our data has no missing (det × educ) cells, so this is dormant; included for robustness.",
+  "- Age cuts use `Inf` as the top break so any IPUMS top-code (current max 90) maps to the `75+` / `65+` bin without dropping rows.",
   "",
   "## Diff vs authors' xlsx",
   "",
-  "Tolerance: 0.001 on the published unit (0..1)."
+  sprintf("Tolerance: %g on the published unit (0..1).", TOL_DIFF)
 )
 
 md_lines <- c(md_lines, "", tbl_lines, "",
@@ -291,12 +317,12 @@ md_lines <- c(md_lines, "", tbl_lines, "",
               "",
               "## Figure 1 diff",
               "",
-              sprintf("%d rows (3 genders × 54 years) vs `Raw` sheet of `Abraham-Kearney-Figure1 (2019-06-07).xlsx`.",
-                      fig_diff$rows[1]),
+              sprintf("%d points (3 genders × %d years × 5 series) vs `Raw` sheet of `Abraham-Kearney-Figure1 (2019-06-07).xlsx`.",
+                      nrow(fig_cells), YEAR_FIG1_END - YEAR_FIG1_START + 1L),
               "",
               fig_lines,
               "",
-              "Float-precision noise. BLS LNS aggregation matches Stata.",
+              "Per-cell diffs: `docs/diff_figure_1_cells.csv`. Float-precision noise. BLS LNS aggregation matches Stata.",
               "",
               "Figure 1 EPOPs (BLS LNS) differ from Table 1A E/P (CPS micro) because the underlying populations differ. Spot check: `docs/fig1_spotcheck.csv`.",
               "",

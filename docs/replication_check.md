@@ -1,7 +1,5 @@
 # Replication check
 
-Generated: 2026-05-21 17:27:59.471379
-
 ## Files used
 
 - `repkit/CPS-programs-and-data/Data/Raw-CPS-extract/cps_00036.dat.gz`: primary microdata
@@ -28,6 +26,7 @@ Generated: 2026-05-21 17:27:59.471379
 - Figure 1 `All ages` = `sum(emp) / sum(pop)` within `(year, gender)`, not a mean of per-age EPOPs.
 - Zero NA `educgroup` rows for age 25+. Table 2B columns sum to 1.
 - Table 2 cell sums use `na.rm = TRUE` to match Stata `collapse (sum)` behaviour on missing cells. Our data has no missing (det × educ) cells, so this is dormant; included for robustness.
+- Age cuts use `Inf` as the top break so any IPUMS top-code (current max 90) maps to the `75+` / `65+` bin without dropping rows.
 
 ## Diff vs authors' xlsx
 
@@ -45,17 +44,17 @@ Per-cell diffs: `docs/diff_table_*.csv`.
 
 ## Figure 1 diff
 
-162 rows (3 genders × 54 years) vs `Raw` sheet of `Abraham-Kearney-Figure1 (2019-06-07).xlsx`.
+810 points (3 genders × 54 years × 5 series) vs `Raw` sheet of `Abraham-Kearney-Figure1 (2019-06-07).xlsx`.
 
-| Series | Max abs diff |
-|--------|--------------|
-| epop16_24 | 7.65e-08 |
-| epop25_54 | 7.43e-08 |
-| epop55_64 | 7.02e-08 |
-| epop65 | 5.43e-08 |
-| epop_all | 7.82e-08 |
+| Series | Failures | Max abs diff |
+|--------|----------|--------------|
+| epop16_24 | 0 | 7.65e-08 |
+| epop25_54 | 0 | 7.43e-08 |
+| epop55_64 | 0 | 7.02e-08 |
+| epop65 | 0 | 5.43e-08 |
+| epop_all | 0 | 7.82e-08 |
 
-Float-precision noise. BLS LNS aggregation matches Stata.
+Per-cell diffs: `docs/diff_figure_1_cells.csv`. Float-precision noise. BLS LNS aggregation matches Stata.
 
 Figure 1 EPOPs (BLS LNS) differ from Table 1A E/P (CPS micro) because the underlying populations differ. Spot check: `docs/fig1_spotcheck.csv`.
 
