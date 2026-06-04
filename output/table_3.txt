@@ -1,0 +1,32 @@
+TABLE 3
+Factors Contributing to Decline in Employment-Population Ratio, 1999–2018
+
+Factors                                                       Estimated reduction in EPOP (percentage points)
+
+Major contributing factors
+  Import competition from China                                  0.92
+  Adoption of industrial robots                                  0.43
+
+Other contributing factors
+  Increased receipt of disability benefits (SSDI, VADC)          0.17
+  Higher minimum wages                                           0.10
+  Increased rate of incarceration                                0.12
+
+Insignificant factors
+  SNAP expansions                                                  ~0
+  Public health insurance expansions                               ~0
+  More generous EITC                                               ~0
+  Increased difficulties due to lack of family leave               ~0
+  Expanded immigration                                             ~0
+
+Indeterminate given state of evidence
+  Increased difficulties due to lack of child care            unclear
+  Changes in leisure options                                  unclear
+  Changes in social norms                                     unclear
+  Increased use of opioids                                    unclear
+  Rise in occupational licensing                              unclear
+  Increases in institutional frictions and/or mismatch        unclear
+
+TOTAL NET EPOP DECLINE (percentage points)                        3.8
+
+Note: EPOP stands for employment-to-population ratio.

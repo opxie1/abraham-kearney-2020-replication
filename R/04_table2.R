@@ -1,10 +1,7 @@
-# Tables 2A/B three-term decomposition.
-
 source(here::here("R", "00_setup.R"))
 
 analysis <- read_parquet(FILE_ANALYSIS)
 
-# Cell EPOP and share.
 cell_stats <- function(df, ...) {
   group_cols <- enquos(...)
   df |>
@@ -20,7 +17,6 @@ cell_stats <- function(df, ...) {
     select(year, !!!group_cols, epop, si)
 }
 
-# Gender overall EPOP per year.
 overall_epop <- function(df) {
   df |>
     summarise(epop = sum(employed * weight) / sum(weight),
@@ -29,7 +25,6 @@ overall_epop <- function(df) {
     deframe()
 }
 
-# Stata's epop1999[1]. Quirk: "All" uses Male's value.
 epop_centring_1999 <- function(df, gender_label) {
   sub <- if (gender_label %in% c("Male", "Female"))
     filter(df, sex == gender_label)
@@ -40,7 +35,6 @@ epop_centring_1999 <- function(df, gender_label) {
     sum(sub$weight[sub$year == YEAR_BASE])
 }
 
-# 2A panel for one gender.
 build_table2a_panel <- function(df, gender_label) {
   src <- if (gender_label == "All") df else filter(df, sex == gender_label)
   ep_all <- overall_epop(src)
@@ -75,7 +69,6 @@ build_table2a_panel <- function(df, gender_label) {
     mutate(age_group = as.character(age_group))
 }
 
-# Merge 3 panels into wide.
 build_table2a <- function(df) {
   panels <- map(c("All", "Male", "Female"),
                 ~ build_table2a_panel(df, .x) |> rename_with(
@@ -110,7 +103,6 @@ build_table2a <- function(df) {
     )
 }
 
-# 2B panel.
 build_table2b_panel <- function(df, gender_label) {
   src <- if (gender_label == "All") df else filter(df, sex == gender_label)
   src <- filter(src, !is.na(educgroup))
@@ -135,7 +127,6 @@ build_table2b_panel <- function(df, gender_label) {
       term3 = sidiff * epopdiff
     )
 
-  # Stata `collapse (sum)` drops missing; use na.rm to match.
   by_det_educ |>
     summarise(
       term1 = sum(term1, na.rm = TRUE),
@@ -147,7 +138,6 @@ build_table2b_panel <- function(df, gender_label) {
     rename(age_group = age_group_decomp)
 }
 
-# Assemble 2B.
 build_table2b <- function(df) {
   panels <- map(c("All", "Male", "Female"),
                 ~ build_table2b_panel(df, .x) |> rename_with(
@@ -204,7 +194,6 @@ write_csv(tab_2b, file.path(PATH_OUTPUT, "table_2b.csv"))
 cat(sprintf("[04] Wrote table_2a.csv (%d rows) and table_2b.csv (%d rows)\n",
             nrow(tab_2a), nrow(tab_2b)))
 
-# Each column sums to 1.
 walk(c("Overall", "Male", "Female"), \(col) {
   s2a <- tab_2a |>
     filter(panel != "Total") |>

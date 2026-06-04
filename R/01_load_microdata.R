@@ -1,10 +1,7 @@
-# Load IPUMS FWF, scale weights, filter, cross-check vs .dta.
-
 source(here::here("R", "00_setup.R"))
 
 cat("[01] Reading CPS fixed-width extract …\n")
 
-# Column types.
 fwf_col_types <- cols(
   year     = col_integer(),
   month    = col_integer(),
@@ -32,21 +29,18 @@ cps_fwf <- read_fwf(
 
 cat(sprintf("[01] FWF read: %d rows, %d cols\n", nrow(cps_fwf), ncol(cps_fwf)))
 
-# Stata-style weight rescale.
 cps_fwf <- cps_fwf |>
   mutate(
     wtfinl = wtfinl / WEIGHT_SCALE,
     compwt = compwt / WEIGHT_SCALE
   )
 
-# Restrict sample.
 cps_micro <- cps_fwf |>
   filter(year %in% YEARS, age >= 16)
 
 cat(sprintf("[01] After filter (age>=16, year in %s): %d rows\n",
             paste(YEARS, collapse = "/"), nrow(cps_micro)))
 
-# Cross-check .dta.
 cat("[01] Loading authors' cps_main.dta for cross-check …\n")
 cps_dta <- read_dta(FILE_CPS_DTA) |>
   filter(year %in% YEARS, age >= 16) |>

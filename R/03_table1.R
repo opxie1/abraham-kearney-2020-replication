@@ -1,11 +1,8 @@
-# Tables 1A/B/C.
-
 source(here::here("R", "00_setup.R"))
 
 analysis <- read_parquet(FILE_ANALYSIS)
 cat(sprintf("[03] Loaded analysis parquet: %d rows\n", nrow(analysis)))
 
-# EPOP and share within year.
 epop_and_share <- function(df, ...) {
   group_cols <- enquos(...)
   df |>
@@ -20,7 +17,6 @@ epop_and_share <- function(df, ...) {
     mutate(epop = wt_emp / wt_pop)
 }
 
-# Long to published wide.
 to_wide <- function(df, group_cols) {
   df |>
     select(all_of(group_cols), year, epop, si) |>
@@ -46,7 +42,6 @@ to_wide <- function(df, group_cols) {
            s_1999, s_2018, ds_99_18)
 }
 
-# Strip prefix.
 educgroup_to_display <- function(x) {
   x <- as.character(x)
   out <- recode(x,
@@ -61,7 +56,6 @@ educgroup_to_display <- function(x) {
                     "Less than HS", "HS", "Some College", "College"))
 }
 
-# Assemble one table.
 build_table1 <- function(df, gender_label) {
   src <- if (gender_label == "All") df else filter(df, sex == gender_label)
 
@@ -113,7 +107,6 @@ write_csv(tab_1c, file.path(PATH_OUTPUT, "table_1c.csv"))
 cat(sprintf("[03] Wrote table_1a.csv / 1b / 1c (%d rows each)\n",
             nrow(tab_1a)))
 
-# Total share == 1.
 walk2(list(tab_1a, tab_1b, tab_1c), c("1A", "1B", "1C"), \(t, lab) {
   tot <- t |> filter(age_group == "TOTAL")
   stopifnot(abs(tot$s_1999 - 1) < SHARE_TOL, abs(tot$s_2018 - 1) < SHARE_TOL)

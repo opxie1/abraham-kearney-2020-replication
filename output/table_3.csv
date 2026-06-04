@@ -1,0 +1,18 @@
+category,factor,jobs_affected,epop_pp_computed,epop_pp_published,source
+Major contributing,Import competition from China,2370000,0.9193493954404925,0.92,"Acemoglu et al. (2016), 1999-2011 jobs estimate"
+Major contributing,Adoption of industrial robots,1118454.4,0.4338609183408264,0.43,IFR robot stock x 5.6 jobs/robot (Acemoglu & Restrepo 2017)
+Other contributing,"Increased receipt of disability benefits (SSDI, VADC)",438436.68164693506,0.1700744718190065,0.17,Excess caseload x elasticity (Maestas et al. 2013; Autor et al. 2016)
+Other contributing,Higher minimum wages,NA,0.1,0.10,Weighted judgment of Powell and Meer-West vs. ~0 literature
+Other contributing,Increased rate of incarceration,307065.62545611686,0.11911417600153491,0.12,Mueller-Smith Table 8 x NLSY97 shares x Buckner/Barber stock
+Insignificant,SNAP expansions,NA,NA,~0,NA
+Insignificant,Public health insurance expansions,NA,NA,~0,NA
+Insignificant,More generous EITC,NA,NA,~0,NA
+Insignificant,Increased difficulties due to lack of family leave,NA,NA,~0,NA
+Insignificant,Expanded immigration,NA,NA,~0,NA
+Indeterminate,Increased difficulties due to lack of child care,NA,NA,unclear,NA
+Indeterminate,Changes in leisure options,NA,NA,unclear,NA
+Indeterminate,Changes in social norms,NA,NA,unclear,NA
+Indeterminate,Increased use of opioids,NA,NA,unclear,NA
+Indeterminate,Rise in occupational licensing,NA,NA,unclear,NA
+Indeterminate,Increases in institutional frictions and/or mismatch,NA,NA,unclear,NA
+Total,TOTAL NET EPOP DECLINE,NA,3.8,3.8,From Table 1A (overall EPOP change 1999-2018)

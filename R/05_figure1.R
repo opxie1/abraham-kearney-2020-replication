@@ -1,10 +1,7 @@
-# Figure 1 from BLS LNS.
-
 source(here::here("R", "00_setup.R"))
 
 cat("[05] Reading BLS LN time series (this can take a minute) …\n")
 
-# Many series outside our 42 use "-" for missing; benign here.
 bls_raw <- suppressWarnings(read_tsv(
   FILE_BLS_TS,
   col_types = cols(
@@ -32,10 +29,8 @@ bls <- bls_raw |>
 cat(sprintf("[05] After filter & join with series_ids: %d rows\n",
             nrow(bls)))
 
-# Defensive: our 42 series should have no missing values 1965-2018.
 stopifnot(!anyNA(bls$value))
 
-# Parse title. "Women" first (contains "Men").
 parse_meta <- function(title) {
   tibble(
     gender = case_when(
@@ -62,13 +57,11 @@ bls <- bls |>
 
 stopifnot(!anyNA(bls$age), !anyNA(bls$var), !anyNA(bls$gender))
 
-# Aggregate sub-bins.
 bls_agg <- bls |>
   summarise(value = sum(value), .by = c(year, gender, age, var)) |>
   pivot_wider(names_from = var, values_from = value) |>
   mutate(epop = emp / pop)
 
-# All-ages line.
 all_ages <- bls_agg |>
   summarise(
     emp = sum(emp),
@@ -86,7 +79,6 @@ fig_data <- bind_rows(bls_agg, all_ages) |>
 write_csv(fig_data, file.path(PATH_OUTPUT, "figure_1_data.csv"))
 cat(sprintf("[05] Wrote figure_1_data.csv (%d rows)\n", nrow(fig_data)))
 
-# Plot.
 plot_df <- fig_data |>
   filter(gender == "All") |>
   filter(age %in% c("16-24", "25-54", "55-64", "65+", "All ages"))

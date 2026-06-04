@@ -1,12 +1,8 @@
-# Diff vs authors' Excel.
-
 source(here::here("R", "00_setup.R"))
 
-# Table 1 published values.
 read_published_table1 <- function(panel_name) {
   sheet <- read_excel(FILE_XLSX_TAB, sheet = "Tables 1A-C Final",
                       col_names = FALSE, .name_repair = "unique_quiet")
-  # 1A=B, 1B=J, 1C=R.
   col_start <- switch(panel_name,
                       A = 2L,
                       B = 10L,
@@ -18,17 +14,14 @@ read_published_table1 <- function(panel_name) {
     mutate(across(everything(), ~ suppressWarnings(as.numeric(.))))
   data_rows <- c(12:17, 20:21, 23:26, 28:31, 33:36, 38:41, 43:46, 48)
   out <- numeric_block[data_rows, ]
-  # Defensive: every picked cell must be numeric.
   stopifnot(!anyNA(out))
   out
 }
 
-# Table 1 cell-wise diff.
 diff_table1 <- function(our_csv, panel_name, tol = TOL_DIFF) {
   ours <- read_csv(our_csv, show_col_types = FALSE)
   pub  <- read_published_table1(panel_name)
   stopifnot(nrow(ours) == nrow(pub))
-  # `/` breaks $-accessor.
   safe <- c(EP_1999 = "E/P_1999",
             EP_2018 = "E/P_2018",
             dEP     = "dEP_99_18",
@@ -50,12 +43,10 @@ diff_table1 <- function(our_csv, panel_name, tol = TOL_DIFF) {
       fail     = diff_abs > tol
     )
   })
-  # Any NA diff means a misaligned or unread cell; fail loudly.
   stopifnot(!anyNA(comparisons$diff_abs))
   comparisons
 }
 
-# Table 2A published.
 read_published_table2a <- function() {
   sheet <- read_excel(FILE_XLSX_TAB, sheet = "Tables 2A-B Final",
                       col_names = FALSE, .name_repair = "unique_quiet")
@@ -80,12 +71,10 @@ read_published_table2a <- function() {
                   Male    = as.numeric(num[[2]][28]),
                   Female  = as.numeric(num[[3]][28]))
   out_full <- bind_rows(out, total)
-  # Total row legitimately has NA age_group; numerics must be present.
   stopifnot(!anyNA(out_full$Overall), !anyNA(out_full$Male), !anyNA(out_full$Female))
   out_full
 }
 
-# Table 2B published. Layout: cols 8-10; panel 2's 65+ block in rows 52-55.
 read_published_table2b <- function() {
   sheet <- read_excel(FILE_XLSX_TAB, sheet = "Tables 2A-B Final",
                       col_names = FALSE, .name_repair = "unique_quiet")
@@ -148,12 +137,10 @@ read_published_table2b <- function() {
   }) |>
     select(panel, age_group, education, Overall, Male, Female)
 
-  # No NA numerics; misaligned layout would surface here.
   stopifnot(!anyNA(out$Overall), !anyNA(out$Male), !anyNA(out$Female))
   out
 }
 
-# Table 2 cell-wise diff.
 diff_table2 <- function(our_csv, pub, key_cols, tol_pp = TOL_DIFF) {
   ours <- read_csv(our_csv, show_col_types = FALSE)
   ours_long <- ours |>
@@ -164,14 +151,65 @@ diff_table2 <- function(our_csv, pub, key_cols, tol_pp = TOL_DIFF) {
                  names_to = "gender", values_to = "pub")
   cmp <- inner_join(ours_long, pub_long,
                     by = c("panel", key_cols, "gender"))
-  # Inner join must not drop rows; row count must equal ours_long.
   stopifnot(nrow(cmp) == nrow(ours_long))
   cmp |>
     mutate(diff_abs = abs(ours - pub),
            fail     = diff_abs > tol_pp)
 }
 
-# Run diffs.
+read_published_table3 <- function() {
+  s <- read_excel(FILE_T3_SUMMARY, sheet = "calculations 2018",
+                  col_names = FALSE, .name_repair = "unique_quiet")
+  numC <- function(r) as.numeric(s[[3]][r])
+  numE <- function(r) as.numeric(s[[5]][r])
+  tibble(
+    factor        = c("Import competition from China",
+                      "Adoption of industrial robots",
+                      "Increased receipt of disability benefits (SSDI, VADC)",
+                      "Higher minimum wages",
+                      "Increased rate of incarceration"),
+    pub_jobs      = c(numC(8), numC(9), numC(11) + numC(12),
+                      NA_real_, numC(15)),
+    pub_pp        = c(numE(8), numE(9), numE(13), 0.10, numE(15)),
+    paper_rounded = c(0.92, 0.43, 0.17, 0.10, 0.12)
+  )
+}
+
+read_published_table3_intermediates <- function() {
+  ssdi <- read_excel(FILE_T3_SSDI, sheet = "SSDI effects",
+                     col_names = FALSE, .name_repair = "unique_quiet")
+  vadc <- read_excel(FILE_T3_VADC, sheet = "VADC effects",
+                     col_names = FALSE, .name_repair = "unique_quiet")
+  inc  <- read_excel(FILE_T3_INC,  sheet = "Incarceration",
+                     col_names = FALSE, .name_repair = "unique_quiet")
+  list(
+    ssdi_K23 = as.numeric(ssdi[[11]][23]),
+    vadc_E27 = as.numeric(vadc[[5]][27]),
+    inc_E36  = as.numeric(inc[[5]][36])
+  )
+}
+
+diff_table3 <- function(our_csv) {
+  ours <- read_csv(our_csv, show_col_types = FALSE)
+  pub  <- read_published_table3()
+  cmp  <- inner_join(ours, pub, by = "factor") |>
+    transmute(
+      factor,
+      ours_jobs = jobs_affected,
+      pub_jobs,
+      jobs_diff = abs(ours_jobs - pub_jobs),
+      ours_pp   = epop_pp_computed,
+      pub_pp,
+      pp_diff   = abs(ours_pp - pub_pp),
+      paper     = paper_rounded,
+      paper_ok  = round(ours_pp, 2) == paper,
+      fail      = pp_diff > TOL_DIFF | !paper_ok
+    )
+  stopifnot(nrow(cmp) == 5L)
+  stopifnot(!anyNA(cmp$pp_diff))
+  cmp
+}
+
 cmp_1a <- diff_table1(file.path(PATH_OUTPUT, "table_1a.csv"), "A")
 cmp_1b <- diff_table1(file.path(PATH_OUTPUT, "table_1b.csv"), "B")
 cmp_1c <- diff_table1(file.path(PATH_OUTPUT, "table_1c.csv"), "C")
@@ -206,7 +244,6 @@ summary_tbl <- tibble(
 print(summary_tbl)
 write_csv(summary_tbl, file.path(PATH_DOCS, "diff_summary.csv"))
 
-# Figure 1 diff.
 fig_pub <- read_excel(FILE_XLSX_FIG, sheet = "Raw", col_names = TRUE)
 fig_ours <- read_csv(file.path(PATH_OUTPUT, "figure_1_data.csv"),
                      show_col_types = FALSE)
@@ -220,11 +257,9 @@ fig_cmp <- inner_join(fig_ours_wide, fig_pub,
                       by = c("gender", "year"),
                       suffix = c("_ours", "_pub"))
 
-# 3 genders × (YEAR_FIG1_END - YEAR_FIG1_START + 1).
 expected_fig_rows <- 3L * (YEAR_FIG1_END - YEAR_FIG1_START + 1L)
 stopifnot(nrow(fig_cmp) == expected_fig_rows)
 
-# Per-cell diff: 810 points (5 series × 162 rows).
 fig_cells <- fig_cmp |>
   transmute(
     year, gender,
@@ -251,11 +286,34 @@ fig_diff <- fig_cells |>
   mutate(rows = expected_fig_rows)
 write_csv(fig_diff, file.path(PATH_DOCS, "diff_figure_1.csv"))
 
-# 1999/2018 spot check.
 spot <- fig_ours_wide |> filter(year %in% YEARS)
 write_csv(spot, file.path(PATH_DOCS, "fig1_spotcheck.csv"))
 
-# Markdown report.
+cmp_3 <- diff_table3(file.path(PATH_OUTPUT, "table_3.csv"))
+write_csv(cmp_3, file.path(PATH_DOCS, "diff_table_3.csv"))
+
+t3_ints <- read_published_table3_intermediates()
+table3_ours <- read_csv(file.path(PATH_OUTPUT, "table_3.csv"),
+                        show_col_types = FALSE)
+disability_jobs_ours <- table3_ours |>
+  filter(factor == "Increased receipt of disability benefits (SSDI, VADC)") |>
+  pull(jobs_affected)
+inc_jobs_ours <- table3_ours |>
+  filter(factor == "Increased rate of incarceration") |>
+  pull(jobs_affected)
+inter_cmp <- tibble(
+  intermediate = c("Disability (SSDI K23 + VADC E27)",
+                   "Incarceration (|E36|)"),
+  ours         = c(disability_jobs_ours, inc_jobs_ours),
+  pub          = c(t3_ints$ssdi_K23 + t3_ints$vadc_E27,
+                   abs(t3_ints$inc_E36)),
+  diff_abs     = abs(c(disability_jobs_ours, inc_jobs_ours) -
+                     c(t3_ints$ssdi_K23 + t3_ints$vadc_E27,
+                       abs(t3_ints$inc_E36)))
+)
+write_csv(inter_cmp, file.path(PATH_DOCS, "diff_table_3_intermediates.csv"))
+stopifnot(max(inter_cmp$diff_abs) < 1e-6)
+
 parq_info <- file.info(FILE_ANALYSIS)
 parq <- read_parquet(FILE_ANALYSIS)
 factor_levels <- map_chr(
@@ -263,6 +321,13 @@ factor_levels <- map_chr(
     "sex", "education", "school_status", "educgroup"),
   ~ sprintf("- `%s`: %s", .x, paste(levels(parq[[.x]]), collapse = " | "))
 )
+
+var_labels <- map_chr(names(parq), \(col) {
+  lbl <- attr(parq[[col]], "label")
+  if (is.null(lbl) || !nzchar(lbl))
+    stop(sprintf("[06] Missing variable label for `%s` in parquet.", col))
+  sprintf("- `%s`: %s", col, lbl)
+})
 
 tbl_lines <- summary_tbl |>
   mutate(across(c(total, failures), as.integer),
@@ -275,6 +340,23 @@ fig_lines <- fig_diff |>
   glue_data("| {series} | {failures} | {sprintf('%.2e', max_diff)} |") |>
   c(c("| Series | Failures | Max abs diff |",
       "|--------|----------|--------------|"), x = _)
+
+t3_rows <- cmp_3 |>
+  glue_data(
+    "| {factor} | {sprintf('%.4f', ours_pp)} | {sprintf('%.4f', pub_pp)} | ",
+    "{sprintf('%.2e', pp_diff)} | {sprintf('%.2f', paper)} | ",
+    "{ifelse(fail, 'FAIL', 'PASS')} |"
+  ) |>
+  c(c("| Factor | Computed pp | Workbook pp | Diff | Paper (2 dp) | Status |",
+      "|--------|------------:|------------:|-----:|-------------:|:------:|"),
+    x = _)
+
+t3_inter_rows <- inter_cmp |>
+  glue_data("| {intermediate} | {sprintf('%.3f', ours)} | ",
+            "{sprintf('%.3f', pub)} | {sprintf('%.2e', diff_abs)} |") |>
+  c(c("| Intermediate | Ours (jobs) | Workbook (jobs) | Diff |",
+      "|--------------|------------:|----------------:|-----:|"),
+    x = _)
 
 md_lines <- c(
   "# Replication check",
@@ -289,22 +371,25 @@ md_lines <- c(
   "- `repkit/CPS-programs-and-data/Programs/Tables and Figures.do`: master script",
   "- `repkit/CPS-programs-and-data/Programs/ado/*.ado`: sub-programs",
   "- `repkit/CPS-programs-and-data/Output/*.xlsx`: published values",
+  "- `repkit/Table-3-data-and-calculations/Table 3 summary calculations.xlsx`: Table 3 pp values",
+  "- `repkit/Table-3-data-and-calculations/3a. Increased receipt of disability benefits SSDI.xlsx`: SSDI workers (K23)",
+  "- `repkit/Table-3-data-and-calculations/3b. Increased receipt of disability benefits VADC.xlsx`: VADC workers (E27)",
+  "- `repkit/Table-3-data-and-calculations/5.-Incarceration/Calculations.xlsx`: incarceration jobs (E36)",
   "",
   "## Files ignored",
   "",
   "- `summarize_by_age_det.ado`, `summarize_by_age_educ_det.ado`: not invoked by master",
   "- `Data/temp/*.dta`: Stata scratch",
-  "- `Table-3-data-and-calculations/`: out of scope",
   "",
   "## Decisions",
   "",
   "- CPS reads via FWF (`readr::read_fwf`) using positions from `cps_9918_input.do`. `cps_main.dta` confirms n and `sum(compwt)` to zero diff.",
   "- Education recoding mirrors `educgroup` in `Tables and Figures.do` lines 86-99.",
-  "- `epop_all` for Table 2 follows `decomp_by_age.ado` exactly. The Stata `local epop_all = epop1999[1]` runs after `reshape wide epop, i(sex) j(year)`. For Male and Female panels this gives the gender's 1999 EPOP. For the Overall panel the reshape produces two rows sorted by `sex`, so `epop1999[1]` is Male's 1999 EPOP rather than the both-genders value the spec assumed. Published cells use Male's value; the R code does too. Each Overall column still sums to 1 because `sum(sidiff) = 0`.",
+  "- `epop_all` for Table 2 mirrors `decomp_by_age.ado`. The Stata `local epop_all = epop1999[1]` runs after `reshape wide epop, i(sex) j(year)`. For Male and Female panels this gives the gender's 1999 EPOP. For the Overall panel, the reshape produces two rows sorted by `sex`, so `epop1999[1]` picks up Male's 1999 EPOP instead of a both-genders value. The published cells use Male's value; so does the R code. Each Overall column still sums to 1 because `sum(sidiff) = 0`.",
   "- Table 2B 16-24 has 2 educ categories (school status); 25+ has 4 (HS recode). The 14-cell-per-panel structure follows from `(agegroup_decomp, educgroup)`.",
   "- Figure 1 `All ages` = `sum(emp) / sum(pop)` within `(year, gender)`, not a mean of per-age EPOPs.",
   "- Zero NA `educgroup` rows for age 25+. Table 2B columns sum to 1.",
-  "- Table 2 cell sums use `na.rm = TRUE` to match Stata `collapse (sum)` behaviour on missing cells. Our data has no missing (det × educ) cells, so this is dormant; included for robustness.",
+  "- Table 2 cell sums use `na.rm = TRUE` to match Stata `collapse (sum)` behaviour on missing cells. The CPS extract has no missing (det × educ) cells, so this never fires. Belt and suspenders.",
   "- Age cuts use `Inf` as the top break so any IPUMS top-code (current max 90) maps to the `75+` / `65+` bin without dropping rows.",
   "",
   "## Diff vs authors' xlsx",
@@ -326,6 +411,23 @@ md_lines <- c(md_lines, "", tbl_lines, "",
               "",
               "Figure 1 EPOPs (BLS LNS) differ from Table 1A E/P (CPS micro) because the underlying populations differ. Spot check: `docs/fig1_spotcheck.csv`.",
               "",
+              "## Table 3 diff",
+              "",
+              "Table 3 synthesises effect-size estimates from several external studies. `R/07_table3.R` re-implements the authors' arithmetic from `repkit/Table-3-data-and-calculations/*.xlsx`. The check compares the 5 computed cells to the authors' summary workbook at full precision, and to the paper's rounded values.",
+              "",
+              t3_rows,
+              "",
+              sprintf("Intermediate job-count check vs per-factor workbooks (max abs diff = %.2e):",
+                      max(inter_cmp$diff_abs)),
+              "",
+              t3_inter_rows,
+              "",
+              "Per-cell diffs: `docs/diff_table_3.csv` and `docs/diff_table_3_intermediates.csv`.",
+              "",
+              "Five `~0` rows and six `unclear` rows in `output/table_3.csv` are the authors' qualitative judgments, so there is no arithmetic to verify. `TOTAL NET EPOP DECLINE = 3.8` comes from Table 1A.",
+              "",
+              "`output/table_3.txt` lays Table 3 out the way the paper does, for side-by-side reading.",
+              "",
               "## Parquet",
               "",
               sprintf("- File: `%s`", FILE_ANALYSIS),
@@ -334,6 +436,9 @@ md_lines <- c(md_lines, "", tbl_lines, "",
               sprintf("- Columns: %d", ncol(parq)),
               "- Levels:",
               factor_levels,
+              "",
+              "- Variable labels:",
+              var_labels,
               "",
               sprintf("- `NA(education) <-> age < 25`: %s",
                       all(is.na(parq$education) == (parq$age < 25))),
