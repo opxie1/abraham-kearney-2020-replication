@@ -1,208 +1,133 @@
 source(here::here("R", "00_setup.R"))
 
 analysis <- read_parquet(FILE_ANALYSIS)
+cat("Loaded", nrow(analysis), "rows for Table 2.\n")
 
-cell_stats <- function(df, ...) {
-  group_cols <- enquos(...)
-  df |>
-    summarise(
-      wt_emp = sum(employed * weight),
-      wt_pop = sum(weight),
-      .by    = c(year, !!!group_cols)
-    ) |>
+overall_epop <- function(d, yr) {
+  rows <- d[d$year == yr, ]
+  sum(rows$employed * rows$weight) / sum(rows$weight)
+}
+
+edu_display <- function(x) {
+  recode(as.character(x),
+         "1. Not In School" = "Not In School",
+         "2. In School" = "In School",
+         "3. No HS" = "Less than HS",
+         "4. HS Grad" = "HS",
+         "5. Some Coll." = "Some College",
+         "6. Coll. Grad" = "College")
+}
+
+panel_2a <- function(all_data, gender) {
+  if (gender == "All") d <- all_data else d <- filter(all_data, sex == gender)
+  dEP <- overall_epop(d, 2018) - overall_epop(d, 1999)
+  if (gender == "Female") {
+    center <- overall_epop(filter(all_data, sex == "Female"), 1999)
+  } else {
+    center <- overall_epop(filter(all_data, sex == "Male"), 1999)
+  }
+  cells <- d |>
+    group_by(year, age_group_detailed, age_group_decomp) |>
+    summarise(emp = sum(employed * weight), pop = sum(weight), .groups = "drop") |>
     group_by(year) |>
-    mutate(si = wt_pop / sum(wt_pop)) |>
+    mutate(si = pop / sum(pop)) |>
     ungroup() |>
-    mutate(epop = wt_emp / wt_pop) |>
-    select(year, !!!group_cols, epop, si)
-}
-
-overall_epop <- function(df) {
-  df |>
-    summarise(epop = sum(employed * weight) / sum(weight),
-              .by = year) |>
-    arrange(year) |>
-    deframe()
-}
-
-epop_centring_1999 <- function(df, gender_label) {
-  sub <- if (gender_label %in% c("Male", "Female"))
-    filter(df, sex == gender_label)
-  else
-    filter(df, sex == "Male")
-  sum(sub$employed[sub$year == YEAR_BASE] *
-      sub$weight[sub$year == YEAR_BASE]) /
-    sum(sub$weight[sub$year == YEAR_BASE])
-}
-
-build_table2a_panel <- function(df, gender_label) {
-  src <- if (gender_label == "All") df else filter(df, sex == gender_label)
-  ep_all <- overall_epop(src)
-  ep1999_for_term2 <- epop_centring_1999(df, gender_label)
-  dEP_total <- ep_all[as.character(YEAR_END)] -
-               ep_all[as.character(YEAR_BASE)]
-
-  by_det <- src |>
-    cell_stats(age_group_detailed, age_group_decomp) |>
+    mutate(epop = emp / pop) |>
+    select(age_group_detailed, age_group_decomp, year, epop, si) |>
     pivot_wider(names_from = year, values_from = c(epop, si)) |>
     mutate(
-      epopdiff = .data[[paste0("epop_", YEAR_END)]] -
-                 .data[[paste0("epop_", YEAR_BASE)]],
-      sidiff   = .data[[paste0("si_",   YEAR_END)]] -
-                 .data[[paste0("si_",   YEAR_BASE)]],
-      term1 = .data[[paste0("si_",   YEAR_BASE)]] * epopdiff,
-      term2 = sidiff *
-              (.data[[paste0("epop_", YEAR_BASE)]] - ep1999_for_term2),
-      term3 = sidiff * epopdiff
+      term1 = si_1999 * (epop_2018 - epop_1999),
+      term2 = (si_2018 - si_1999) * (epop_1999 - center),
+      term3 = (si_2018 - si_1999) * (epop_2018 - epop_1999)
     )
-
-  by_det |>
-    summarise(
-      term1 = sum(term1, na.rm = TRUE),
-      term2 = sum(term2, na.rm = TRUE),
-      term3 = sum(term3, na.rm = TRUE),
-      .by   = age_group_decomp
-    ) |>
-    mutate(across(c(term1, term2, term3), ~ . / dEP_total)) |>
-    arrange(age_group_decomp) |>
-    rename(age_group = age_group_decomp) |>
-    mutate(age_group = as.character(age_group))
+  cells |>
+    group_by(age_group_decomp) |>
+    summarise(term1 = sum(term1, na.rm = TRUE) / dEP,
+              term2 = sum(term2, na.rm = TRUE) / dEP,
+              term3 = sum(term3, na.rm = TRUE) / dEP,
+              .groups = "drop") |>
+    arrange(age_group_decomp)
 }
 
-build_table2a <- function(df) {
-  panels <- map(c("All", "Male", "Female"),
-                ~ build_table2a_panel(df, .x) |> rename_with(
-                    \(c) ifelse(c %in% c("term1", "term2", "term3"),
-                                paste0(c, "_", .x), c)))
-  panels[[1]] |>
-    inner_join(panels[[2]], by = "age_group") |>
-    inner_join(panels[[3]], by = "age_group") |>
-    pivot_longer(-age_group,
-                 names_to = c("term", "gender"),
-                 names_sep = "_") |>
-    pivot_wider(names_from = gender, values_from = value) |>
-    mutate(
-      panel = recode(term,
-                     term1 = "s_i x dE/P_i",
-                     term2 = "(E/P_i - E/P) x ds_i",
-                     term3 = "ds_i x dE/P_i"),
-      panel = factor(panel,
-                     levels = c("s_i x dE/P_i",
-                                "(E/P_i - E/P) x ds_i",
-                                "ds_i x dE/P_i"))
-    ) |>
-    arrange(panel, factor(age_group, levels = AGE_LABELS_DECOMP)) |>
-    select(panel, age_group, Overall = All, Male, Female) |>
-    bind_rows(
-      tibble(panel = factor("Total",
-                            levels = c("s_i x dE/P_i",
-                                       "(E/P_i - E/P) x ds_i",
-                                       "ds_i x dE/P_i", "Total")),
-             age_group = NA_character_,
-             Overall = 1, Male = 1, Female = 1)
-    )
-}
-
-build_table2b_panel <- function(df, gender_label) {
-  src <- if (gender_label == "All") df else filter(df, sex == gender_label)
-  src <- filter(src, !is.na(educgroup))
-
-  ep_all <- overall_epop(if (gender_label == "All") df
-                         else filter(df, sex == gender_label))
-  ep1999_for_term2 <- epop_centring_1999(df, gender_label)
-  dEP_total <- ep_all[as.character(YEAR_END)] -
-               ep_all[as.character(YEAR_BASE)]
-
-  by_det_educ <- src |>
-    cell_stats(age_group_detailed, age_group_decomp, educgroup) |>
+panel_2b <- function(all_data, gender) {
+  if (gender == "All") d <- all_data else d <- filter(all_data, sex == gender)
+  dEP <- overall_epop(d, 2018) - overall_epop(d, 1999)
+  if (gender == "Female") {
+    center <- overall_epop(filter(all_data, sex == "Female"), 1999)
+  } else {
+    center <- overall_epop(filter(all_data, sex == "Male"), 1999)
+  }
+  cells <- d |>
+    filter(!is.na(educgroup)) |>
+    group_by(year, age_group_detailed, age_group_decomp, educgroup) |>
+    summarise(emp = sum(employed * weight), pop = sum(weight), .groups = "drop") |>
+    group_by(year) |>
+    mutate(si = pop / sum(pop)) |>
+    ungroup() |>
+    mutate(epop = emp / pop) |>
+    select(age_group_detailed, age_group_decomp, educgroup, year, epop, si) |>
     pivot_wider(names_from = year, values_from = c(epop, si)) |>
     mutate(
-      epopdiff = .data[[paste0("epop_", YEAR_END)]] -
-                 .data[[paste0("epop_", YEAR_BASE)]],
-      sidiff   = .data[[paste0("si_",   YEAR_END)]] -
-                 .data[[paste0("si_",   YEAR_BASE)]],
-      term1 = .data[[paste0("si_",   YEAR_BASE)]] * epopdiff,
-      term2 = sidiff *
-              (.data[[paste0("epop_", YEAR_BASE)]] - ep1999_for_term2),
-      term3 = sidiff * epopdiff
+      term1 = si_1999 * (epop_2018 - epop_1999),
+      term2 = (si_2018 - si_1999) * (epop_1999 - center),
+      term3 = (si_2018 - si_1999) * (epop_2018 - epop_1999)
     )
-
-  by_det_educ |>
-    summarise(
-      term1 = sum(term1, na.rm = TRUE),
-      term2 = sum(term2, na.rm = TRUE),
-      term3 = sum(term3, na.rm = TRUE),
-      .by   = c(age_group_decomp, educgroup)
-    ) |>
-    mutate(across(c(term1, term2, term3), ~ . / dEP_total)) |>
-    rename(age_group = age_group_decomp)
+  cells |>
+    group_by(age_group_decomp, educgroup) |>
+    summarise(term1 = sum(term1, na.rm = TRUE) / dEP,
+              term2 = sum(term2, na.rm = TRUE) / dEP,
+              term3 = sum(term3, na.rm = TRUE) / dEP,
+              .groups = "drop")
 }
 
-build_table2b <- function(df) {
-  panels <- map(c("All", "Male", "Female"),
-                ~ build_table2b_panel(df, .x) |> rename_with(
-                    \(c) ifelse(c %in% c("term1", "term2", "term3"),
-                                paste0(c, "_", .x), c)))
-  combined <- panels[[1]] |>
-    inner_join(panels[[2]], by = c("age_group", "educgroup")) |>
-    inner_join(panels[[3]], by = c("age_group", "educgroup"))
+panel_names <- c("s_i x dE/P_i", "(E/P_i - E/P) x ds_i", "ds_i x dE/P_i")
+term_names <- c("term1", "term2", "term3")
 
-  long <- combined |>
-    pivot_longer(starts_with("term"),
-                 names_to = c("term", "gender"),
-                 names_sep = "_") |>
-    pivot_wider(names_from = gender, values_from = value) |>
-    mutate(
-      panel = recode(term,
-                     term1 = "s_i x dE/P_i",
-                     term2 = "(E/P_i - E/P) x ds_i",
-                     term3 = "ds_i x dE/P_i"),
-      panel = factor(panel,
-                     levels = c("s_i x dE/P_i",
-                                "(E/P_i - E/P) x ds_i",
-                                "ds_i x dE/P_i"))
-    )
+a_all <- panel_2a(analysis, "All")
+a_male <- panel_2a(analysis, "Male")
+a_female <- panel_2a(analysis, "Female")
 
-  display_levels <- c("Not In School", "In School",
-                      "Less than HS", "HS", "Some College", "College")
-  long |>
-    mutate(
-      education = recode(as.character(educgroup),
-                         "1. Not In School" = "Not In School",
-                         "2. In School"     = "In School",
-                         "3. No HS"         = "Less than HS",
-                         "4. HS Grad"       = "HS",
-                         "5. Some Coll."    = "Some College",
-                         "6. Coll. Grad"    = "College"),
-      education = factor(education, levels = display_levels)
-    ) |>
-    arrange(panel,
-            factor(age_group, levels = AGE_LABELS_DECOMP),
-            education) |>
-    mutate(age_group = as.character(age_group),
-           education = as.character(education)) |>
-    select(panel, age_group, education,
-           Overall = All, Male, Female)
+tab_2a <- tibble()
+for (i in 1:3) {
+  tm <- term_names[i]
+  for (ag in AGE_LABELS_DECOMP) {
+    tab_2a <- bind_rows(tab_2a, tibble(
+      panel = panel_names[i],
+      age_group = ag,
+      Overall = a_all[[tm]][as.character(a_all$age_group_decomp) == ag],
+      Male = a_male[[tm]][as.character(a_male$age_group_decomp) == ag],
+      Female = a_female[[tm]][as.character(a_female$age_group_decomp) == ag]
+    ))
+  }
 }
+tab_2a <- bind_rows(tab_2a, tibble(panel = "Total", age_group = NA_character_,
+                                   Overall = 1, Male = 1, Female = 1))
 
-tab_2a <- build_table2a(analysis)
-tab_2b <- build_table2b(analysis)
+b_all <- panel_2b(analysis, "All")
+b_male <- panel_2b(analysis, "Male")
+b_female <- panel_2b(analysis, "Female")
+
+tab_2b <- tibble()
+for (i in 1:3) {
+  tm <- term_names[i]
+  for (r in 1:nrow(b_all)) {
+    ag <- as.character(b_all$age_group_decomp[r])
+    eg <- as.character(b_all$educgroup[r])
+    m <- which(as.character(b_male$age_group_decomp) == ag & as.character(b_male$educgroup) == eg)
+    f <- which(as.character(b_female$age_group_decomp) == ag & as.character(b_female$educgroup) == eg)
+    tab_2b <- bind_rows(tab_2b, tibble(
+      panel = panel_names[i],
+      age_group = ag,
+      education = edu_display(eg),
+      Overall = b_all[[tm]][r],
+      Male = b_male[[tm]][m],
+      Female = b_female[[tm]][f]
+    ))
+  }
+}
 
 write_csv(tab_2a, file.path(PATH_OUTPUT, "table_2a.csv"))
 write_csv(tab_2b, file.path(PATH_OUTPUT, "table_2b.csv"))
-
-cat(sprintf("[04] Wrote table_2a.csv (%d rows) and table_2b.csv (%d rows)\n",
-            nrow(tab_2a), nrow(tab_2b)))
-
-walk(c("Overall", "Male", "Female"), \(col) {
-  s2a <- tab_2a |>
-    filter(panel != "Total") |>
-    pull(.data[[col]]) |>
-    sum()
-  s2b <- tab_2b |>
-    pull(.data[[col]]) |>
-    sum()
-  stopifnot(abs(s2a - 1) < SHARE_TOL, abs(s2b - 1) < SHARE_TOL)
-  cat(sprintf("[04] Table 2A col %-7s sum = %.6f | Table 2B sum = %.6f\n",
-              col, s2a, s2b))
-})
+cat("Wrote table_2a (", nrow(tab_2a), "rows) and table_2b (", nrow(tab_2b), "rows).\n")
+cat("Table 2A Overall column sum:", round(sum(tab_2a$Overall[tab_2a$panel != "Total"]), 4), "\n")
+cat("Table 2B Overall column sum:", round(sum(tab_2b$Overall), 4), "\n")

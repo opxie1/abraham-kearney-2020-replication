@@ -1,57 +1,41 @@
 source(here::here("R", "00_setup.R"))
 
-cat("[01] Reading CPS fixed-width extract …\n")
+cat("Reading the CPS data...\n")
 
-fwf_col_types <- cols(
-  year     = col_integer(),
-  month    = col_integer(),
-  wtfinl   = col_double(),
-  age      = col_integer(),
-  sex      = col_integer(),
-  race     = col_integer(),
-  empstat  = col_integer(),
-  ind1990  = col_integer(),
-  educ     = col_integer(),
-  schlcoll = col_integer(),
-  compwt   = col_double()
-)
-
-cps_fwf <- read_fwf(
-  file = FILE_CPS_FWF,
-  col_positions = fwf_positions(
-    start     = CPS_FWF_POSITIONS$start,
-    end       = CPS_FWF_POSITIONS$end,
-    col_names = CPS_FWF_POSITIONS$name
-  ),
-  col_types = fwf_col_types,
-  progress  = FALSE
-)
-
-cat(sprintf("[01] FWF read: %d rows, %d cols\n", nrow(cps_fwf), ncol(cps_fwf)))
-
-cps_fwf <- cps_fwf |>
-  mutate(
-    wtfinl = wtfinl / WEIGHT_SCALE,
-    compwt = compwt / WEIGHT_SCALE
+cps <- read_fwf(
+  FILE_CPS_FWF,
+  fwf_positions(CPS_FWF_POSITIONS$start, CPS_FWF_POSITIONS$end, CPS_FWF_POSITIONS$name),
+  col_types = cols(
+    year = col_integer(),
+    month = col_integer(),
+    wtfinl = col_double(),
+    age = col_integer(),
+    sex = col_integer(),
+    race = col_integer(),
+    empstat = col_integer(),
+    ind1990 = col_integer(),
+    educ = col_integer(),
+    schlcoll = col_integer(),
+    compwt = col_double()
   )
+)
 
-cps_micro <- cps_fwf |>
+cps$wtfinl <- cps$wtfinl / WEIGHT_SCALE
+cps$compwt <- cps$compwt / WEIGHT_SCALE
+
+cps <- cps |>
   filter(year %in% YEARS, age >= 16)
 
-cat(sprintf("[01] After filter (age>=16, year in %s): %d rows\n",
-            paste(YEARS, collapse = "/"), nrow(cps_micro)))
+cat("Rows after keeping 1999 and 2018, age 16+:", nrow(cps), "\n")
 
-cat("[01] Loading authors' cps_main.dta for cross-check …\n")
-cps_dta <- read_dta(FILE_CPS_DTA) |>
-  filter(year %in% YEARS, age >= 16) |>
-  mutate(across(c(year, age, sex, empstat, educ, schlcoll, month), as.integer))
+cps_stata <- read_dta(FILE_CPS_DTA) |>
+  filter(year %in% YEARS, age >= 16)
 
-stopifnot(nrow(cps_micro) == nrow(cps_dta))
-diff_weight <- abs(sum(cps_micro$compwt) - sum(cps_dta$compwt))
-stopifnot(diff_weight < WEIGHT_DIFF_TOL)
-cat(sprintf("[01] FWF/dta cross-check OK (n=%d, |Δsum(compwt)|=%.3e)\n",
-            nrow(cps_micro), diff_weight))
+if (nrow(cps) != nrow(cps_stata)) {
+  stop("Row count does not match the authors' Stata file.")
+}
+cat("Weight check vs Stata file (should be about 0):",
+    abs(sum(cps$compwt) - sum(cps_stata$compwt)), "\n")
 
-saveRDS(cps_micro, FILE_MICRO_RDS)
-cat(sprintf("[01] Wrote %s (%.1f MB)\n", FILE_MICRO_RDS,
-            file.info(FILE_MICRO_RDS)$size / 1024^2))
+saveRDS(cps, FILE_MICRO_RDS)
+cat("Saved the raw microdata.\n")

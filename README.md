@@ -11,8 +11,7 @@ Reproduces all 7 exhibits (Tables 1A/B/C, 2A/B, 3, Figure 1) of:
 3. Install packages:
 
 ```r
-install.packages(c("tidyverse", "arrow", "readxl", "haven",
-                   "here", "janitor", "scales", "glue"))
+install.packages(c("tidyverse", "arrow", "readxl", "haven", "here"))
 ```
 
 ## Run
