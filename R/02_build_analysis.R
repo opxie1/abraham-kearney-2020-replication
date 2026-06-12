@@ -41,7 +41,7 @@ analysis <- cps |>
     age_group_summary = cut(age, AGE_BREAKS_SUMM, AGE_LABELS_SUMM, right = FALSE, include.lowest = TRUE),
     age_group_decomp = cut(age, AGE_BREAKS_DECOMP, AGE_LABELS_DECOMP, right = FALSE, include.lowest = TRUE)
   ) |>
-  select(year, month, age,
+  select(year, age,
          age_group_detailed, age_group_summary, age_group_decomp,
          sex, education, school_status, educgroup, employed, weight)
 
@@ -49,7 +49,6 @@ cat("Built the analysis data:", nrow(analysis), "rows,", ncol(analysis), "column
 
 labels <- c(
   year = "Survey year",
-  month = "Survey month (1-12)",
   age = "Age in years (top-coded at 90 by IPUMS)",
   age_group_detailed = "Age group, 13 bins",
   age_group_summary = "Age group, 6 bins (Tables 1A-C)",

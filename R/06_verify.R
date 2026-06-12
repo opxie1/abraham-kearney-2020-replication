@@ -231,3 +231,4 @@ cat("Wrote docs/replication_check.md\n")
 
 total_failures <- sum(summary_tbl$failures) + sum(fig_diff$failures) + sum(cmp_3$fail)
 cat("\nAll checks done. Total failures across everything:", total_failures, "\n")
+if (total_failures > 0) stop("Some cells did not match the authors' files; see the diff tables in docs/.")

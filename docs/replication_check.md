@@ -37,12 +37,11 @@ Incarceration jobs: ours 307065.6, workbook 307065.6 (diff 0.00e+00).
 
 ## Parquet
 
-Rows: 2,312,616, columns: 12, size: 15.9 MB.
+Rows: 2,312,616, columns: 11, size: 15.9 MB.
 
 Variable labels:
 
 - year: Survey year
-- month: Survey month (1-12)
 - age: Age in years (top-coded at 90 by IPUMS)
 - age_group_detailed: Age group, 13 bins
 - age_group_summary: Age group, 6 bins (Tables 1A-C)

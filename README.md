@@ -22,11 +22,11 @@ Rscript R/run_all.R
 
 About 3 minutes. The pipeline loads the CPS extract, builds the parquet, writes the five tables and Figure 1, computes Table 3 from the authors' workbooks, then runs the diff.
 
-A run that finishes prints a `[run_all] SUCCESS.` banner. On Windows the R process may then report a non-zero exit code: that is a known Apache Arrow shutdown bug (the arrow DLL unloads after R has finished), and every output is already written by the time it happens. Treat the SUCCESS banner, not the exit code, as the signal.
+A finished run prints a `Done.` line at the end. On Windows the R process may then report a non-zero exit code: that is a known Apache Arrow shutdown bug (the arrow DLL unloads after R has finished), and every output is already written by the time it happens. Treat the `Done.` line, not the exit code, as the signal that it worked.
 
 ## Outputs
 
-- `data/analysis.parquet`: CPS microdata, 2.3M rows, zstd-9, factor-encoded with variable labels. 12 columns, only what the tables need.
+- `data/analysis.parquet`: CPS microdata, 2.3M rows, zstd-9, factor-encoded with variable labels. 11 columns, only what the tables need.
 - `output/table_1a.csv`, `table_1b.csv`, `table_1c.csv`: Tables 1A/B/C
 - `output/table_2a.csv`, `table_2b.csv`: Tables 2A/B
 - `output/table_3.csv`, `table_3.txt`: Table 3 (CSV plus a text version laid out like the paper)
